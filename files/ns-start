@@ -1,0 +1,85 @@
+#!/bin/bash
+
+
+if [ "$SR" = "" ];then
+
+	echo "Error: Server role needed!!! (dc, member, standalone)"
+	exit 2
+
+fi
+
+
+
+start_dc() {
+
+	if [ -f /config/smb.conf ];then
+		/etc/init.d/cron start
+		/etc/init.d/samba-ad-dc start
+	else
+		echo "You need run: /usr/bin/samba-tool domain provision â--use-rfc2307  --interactive"
+	fi
+}
+
+
+start_sa() {
+
+	for i in $(ls /opt/config);do
+
+        	if [ ! -f /config/$i ];then
+                	cp -fv /opt/config/$i /config
+        	fi
+
+	done
+
+
+	 /etc/init.d/samba start
+	
+	if [ "$TM" =  "yes" ];then 
+
+
+		for i in $(ls /opt/services);do
+
+        		if [ ! -f /services/$i ];then
+                	cp -fv /opt/services/$i /services
+        		fi
+
+		done
+
+
+
+
+		/etc/init.d/dbus start		
+		/usr/sbin/avahi-daemon -D --no-chroot
+
+	fi
+
+}
+
+
+
+stop() {
+
+	 /etc/init.d/avahi-daemon stop
+	/etc/init.d/dbus stop
+	 /etc/init.d/cron stop	
+	 /etc/init.d/samba-ad-dc stop
+	 /etc/init.d/samba stop
+}
+
+
+
+#Start domain controler mode or standalone
+if [ "$SR" = "dc" ];then
+	start_dc
+ 
+else
+
+	start_sa
+
+fi
+
+
+
+#Keep container alive
+trap 'stop' SIGTERM 
+tail -f /dev/null & wait ${!}
